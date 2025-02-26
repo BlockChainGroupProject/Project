@@ -3,6 +3,7 @@ import threading
 import sympy
 import sqlite3
 import json
+import Merge
 
 MAX_CLIENT  = 5
 lock  = threading.Lock()
@@ -131,13 +132,35 @@ def handleClient(client,addr):
 def afterLogin(client, username):
     global prime
     while True:
+        
         client.sendall(json.dumps(createMessage("info", f"Welcome {username}", False)).encode())
         ## send prime
         client.sendall(json.dumps(createMessage("prime",int(prime), False)).encode())
         ##
+        while True:
+            client.sendall(json.dumps(createMessage("info",f"1. check Users Online\n2. check Merge Request\n3. start Merge Request\n4. send Merge Request"
+    , reply_flag = True)).encode())
+            choice = json.loads(client.recv(1024).decode())["data"]
+            if choice == "1":
+                client.sendall(json.dumps(createMessage("info","sending list", False)).encode())
+                messages = [createMessage("info", key, False) for key in UserClientDict.keys()]
+                for message in messages:
+                    client.sendall(json.dumps(message).encode())
+            elif choice == "2":
+                Merge.c
+                pass
+            elif choice == "3":
+                pass
+            elif choice == "4":
+                client.sendall(json.dumps(createMessage("request","Enter Username to Merge",True)).encode())
+                
+                pass
+
+        #client.sendall(json.dumps(menu).encode())
+        #choice = (json.loads(client.recv(1024).decode()))["data"]
         #client.sendall(json.dumps(createMessage("info", "Perform operation:\n1.Send Merge Request\n2.Check Merge Request\n3.RequestPrime",False)).encode())
-        for key ,val in UserClientDict.items():
-            client.sendall(json.dumps(createMessage("info", f"{key}",False)).encode())
+        #messages = [createMessage("info", key, False) for key in UserClientDict.keys()]
+        #client.sendall(json.dumps(messages).encode())
         client.sendall(json.dumps(createMessage ("info", f"Please Choose user data to merge", True)).encode())
         r_username = client.recv(1024).decode()
         p_r_username = json.loads(r_username)
@@ -171,9 +194,10 @@ def generatePrime():
     global prime
     prime = sympy.randprime(2**511,2**512)
 def main():
-    ServerDown = False
+    
     print("Server Starting ... ")
     init_database()
+    Merge.init()
     generatePrime()
     #server background Thread
     threading.Thread(target = serverThread,daemon = True).start()
@@ -185,4 +209,4 @@ def main():
         return
 if __name__ == "__main__":
     main()
-
+    
