@@ -19,6 +19,12 @@ class UserSession:
         while True:
             self.client.sendall(createMessage("info", LoginUsers.getInitUI(), True))
             msg = decodeMessage(self.client.recv(1024))
+
+            if msg["type"] == "psi_cid":
+                data = json.loads(msg["data"])
+                self._store_and_forward_psi_cid(data)
+                continue
+
             option = msg["data"]
 
             if option == '1': #Check Online User
@@ -288,8 +294,12 @@ class UserSession:
         # Generate private key (待修改)
         private_key = random.randint(2, prime-2)
         
+        self.client.sendall(createMessage("info", "Request‑ID:", True))
+        request_id = decodeMessage(self.client.recv(1024))["data"]
+
         # Create PSI parameters
         psi_params = {
+            "request_id": request_id,
             "excel_path": excel_path,
             "id_columns": id_columns,
             "data_columns": data_columns,
@@ -346,3 +356,48 @@ class UserSession:
     def __del__(self):
         # No need to close the database connection anymore
         pass
+
+    def _store_and_forward_psi_cid(self, data):
+        print("SERVER received psi_cid", data)
+        req   = data["request_id"]
+        step  = data["step"]            # 1 / 2 / 3
+        cid   = data["cid"]
+
+        # Fetch the merge‑request row once
+        row = self.mergeDB.getRequest(req)   # (id, user1, user2, …)
+
+        # decide which columns
+        if self.username == row[1]:
+            col_me   = f"STEP{step}_CID_USER1"
+            col_peer = f"STEP{step}_CID_USER2"
+            peername = row[2]
+        else:
+            col_me   = f"STEP{step}_CID_USER2"
+            col_peer = f"STEP{step}_CID_USER1"
+            peername = row[1]
+
+        # store mine
+        self.mergeDB.setColumn(req, col_me, cid)
+
+        # Did the partner already send theirs?
+        partner_cid = self.mergeDB.getColumn(req, col_peer)
+        if not partner_cid:
+            # partner not ready yet – nothing else to do
+            self.client.sendall(createMessage("info",
+                f"Received CID for step {step}. Waiting for partner…", False))
+            return
+
+        # Both CIDs present – push them to both clients
+        next_signal = {1: "psi_step2",
+                    2: "psi_step3",
+                    3: "psi_step4"}[step]
+
+        # send to the partner
+        partner_sock = LoginUsers._OnlineLoginUsers.get(peername)
+        if partner_sock:
+            partner_sock.sendall(createMessage("signal",
+                f"{next_signal}:{cid}", False))
+
+        # send to myself
+        self.client.sendall(createMessage("signal",
+            f"{next_signal}:{partner_cid}", False))

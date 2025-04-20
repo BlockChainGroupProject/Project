@@ -17,14 +17,20 @@ class MergeRequest:
             self.cursor = self.conn.cursor()
             self.cursor.execute(
                 """
-                    CREATE TABLE IF NOT EXISTS MERGE_REQUESTS(
+                CREATE TABLE IF NOT EXISTS MERGE_REQUESTS(
                     REQUESTS_ID TEXT PRIMARY KEY NOT NULL,
                     USER1_ID TEXT NOT NULL,
                     USER2_ID TEXT NOT NULL,
                     USER1_CONFIRM BOOLEAN DEFAULT FALSE,
                     USER2_CONFIRM BOOLEAN DEFAULT FALSE,
-                    USER1_CID TEXT DEFAULT "",
-                    USER2_CID TEXT DEFAULT ""
+                    USER1_CID TEXT DEFAULT '',
+                    USER2_CID TEXT DEFAULT '',
+                    STEP1_CID_USER1 TEXT DEFAULT '',
+                    STEP1_CID_USER2 TEXT DEFAULT '',
+                    STEP2_CID_USER1 TEXT DEFAULT '',
+                    STEP2_CID_USER2 TEXT DEFAULT '',
+                    STEP3_CID_USER1 TEXT DEFAULT '',
+                    STEP3_CID_USER2 TEXT DEFAULT ''
                 )
                 """
             )
@@ -181,3 +187,18 @@ class MergeRequest:
                      raise ValueError("User is not part of this merge request.")
             except ValueError as e:
                 raise ValueError(f"{e}")
+
+    def setColumn(self, req_id, column, value):
+        with MergeRequest._lock:
+            self.cursor.execute(
+                f"UPDATE MERGE_REQUESTS SET {column} = ? WHERE REQUESTS_ID = ?",
+                (value, req_id))
+            self.conn.commit()
+
+    def getColumn(self, req_id, column):
+        with MergeRequest._lock:
+            self.cursor.execute(
+                f"SELECT {column} FROM MERGE_REQUESTS WHERE REQUESTS_ID = ?",
+                (req_id,))
+            res = self.cursor.fetchone()
+            return res[0] if res else ''

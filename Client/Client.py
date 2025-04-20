@@ -6,6 +6,13 @@ import subprocess
 import tempfile
 import time
 
+# helper to send CID envelopes back to the server
+def send_psi_cid(sock, request_id, step, cid):
+    envelope = {"request_id": request_id, "step": step, "cid": cid}
+    sock.send(json.dumps({"type": "psi_cid",
+                          "data": json.dumps(envelope),
+                          "reply_required": False}).encode())
+    
 def main():
     client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
@@ -154,6 +161,8 @@ def main():
                     try:
                         # Extract PSI parameters 
                         psi_params = json.loads(parsed_data['data'].split(":", 1)[1])
+
+                        psi_context["request_id"] = psi_params["request_id"]
                         
                         # Import the PSI module
                         current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -192,6 +201,7 @@ def main():
                         
                         # Return CID to the server
                         cid = result["step1"]["cid_c"]
+                        send_psi_cid(client, psi_context["request_id"], 1, cid)
                         response = createMessage("info", f"PSI Step 1 completed. CID: {cid}", False)
                         client.send(json.dumps(response).encode())
                         
@@ -240,6 +250,7 @@ def main():
                         
                         # Return CID to the server
                         cid = result["step2"]["cid_k"]
+                        send_psi_cid(client, psi_context["request_id"], 2, cid)
                         response = createMessage("info", f"PSI Step 2 completed. CID: {cid}", False)
                         client.send(json.dumps(response).encode())
                         
@@ -288,6 +299,7 @@ def main():
                         
                         # Return CID to the server
                         cid = result["step3"]["cid_match"]
+                        send_psi_cid(client, psi_context["request_id"], 3, cid)
                         response = createMessage("info", f"PSI Step 3 completed. CID: {cid}", False)
                         client.send(json.dumps(response).encode())
                         
